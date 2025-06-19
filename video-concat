@@ -175,18 +175,21 @@ concatenate_videos() {
     
     # Cleanup function
     cleanup() {
-        if [[ "$VERBOSE" == "true" ]]; then
+        if [[ "$VERBOSE" == "true" ]] && [[ -n "${TMP_DIR:-}" ]]; then
             print_status "Cleaning up temporary files..."
         fi
-        rm -rf "$TMP_DIR"
+        if [[ -n "${TMP_DIR:-}" ]]; then
+            rm -rf "$TMP_DIR"
+        fi
     }
     trap cleanup EXIT
     
     # Get all video files and sort them alphabetically
     local VIDEO_FILES=()
     while IFS= read -r -d '' file; do
-        # Skip the output file if it exists in the input directory
-        if [[ "$(basename "$file")" != "$(basename "$output_file")" ]]; then
+        # Skip the output file and any previous output files
+        local filename=$(basename "$file")
+        if [[ "$filename" != "$(basename "$output_file")" ]] && [[ "$filename" != "output.mp4" ]] && [[ "$filename" != "test-output.mp4" ]]; then
             VIDEO_FILES+=("$file")
         fi
     done < <(find "$input_dir" -maxdepth 1 -type f \( -name "*.mov" -o -name "*.mp4" -o -name "*.avi" -o -name "*.mkv" -o -name "*.MOV" -o -name "*.MP4" -o -name "*.AVI" -o -name "*.MKV" \) -print0 | sort -z)
