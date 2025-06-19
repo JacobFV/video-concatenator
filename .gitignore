@@ -1,0 +1,47 @@
+# Video files
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.MOV
+*.MP4
+*.AVI
+*.MKV
+
+# Temporary files
+*.tmp
+*.temp
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Test output
+output.mp4
+test-output.*
+
+# Temporary directories
+tmp/
+temp/ 
