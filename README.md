@@ -57,7 +57,7 @@ choco install ffmpeg
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/video-concatenator.git
+git clone https://github.com/JacobFV/video-concatenator.git
 cd video-concatenator
 
 # Make the script executable
