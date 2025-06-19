@@ -327,6 +327,18 @@ concatenate_videos() {
     local CELL_WIDTH=$(((WIDTH - (GRID_COLS + 1) * PADDING) / GRID_COLS))
     local CELL_HEIGHT=$(((HEIGHT - (GRID_ROWS + 1) * PADDING) / GRID_ROWS))
     
+    # Ensure cell dimensions are even numbers for ffmpeg compatibility
+    CELL_WIDTH=$((CELL_WIDTH & ~1))
+    CELL_HEIGHT=$((CELL_HEIGHT & ~1))
+    
+    # Reserve space for text overlay (40 pixels at top)
+    local VIDEO_HEIGHT=$((CELL_HEIGHT - 50))
+    VIDEO_HEIGHT=$((VIDEO_HEIGHT & ~1))
+    
+    if [[ "$VERBOSE" == "true" ]]; then
+        print_status "Grid layout: ${GRID_COLS}x${GRID_ROWS}, Cell size: ${CELL_WIDTH}x${CELL_HEIGHT}, Video area: ${CELL_WIDTH}x${VIDEO_HEIGHT}"
+    fi
+    
     # Build complex filter for grid layout
     local FILTER_COMPLEX="" INPUTS=""
     
@@ -347,13 +359,8 @@ concatenate_videos() {
         # Add input
         INPUTS="$INPUTS -i \"$video_file\""
         
-        # Calculate grid position with padding
-        local row=$((i / GRID_COLS))
-        local col=$((i % GRID_COLS))
-        
-        # Build filter for this video
-        local video_height=$((CELL_HEIGHT - 40))
-        local video_filter="[$i:v]setpts=PTS/${speed_factor},scale=${CELL_WIDTH}:${video_height}:force_original_aspect_ratio=decrease,pad=${CELL_WIDTH}:${CELL_HEIGHT}:(ow-iw)/2:40:black,drawtext=text='${filename_no_ext}':fontcolor=red:fontsize=32:x=(w-tw)/2:y=10:box=1:boxcolor=black@0.8:boxborderw=3[v${i}]"
+        # Build filter for this video - simplified approach
+        local video_filter="[$i:v]setpts=PTS/${speed_factor},scale=${CELL_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,pad=${CELL_WIDTH}:${CELL_HEIGHT}:(ow-iw)/2:50:black,drawtext=text='${filename_no_ext}':fontcolor=red:fontsize=24:x=(w-tw)/2:y=15:box=1:boxcolor=black@0.8:boxborderw=2[v${i}]"
         
         if [ -n "$FILTER_COMPLEX" ]; then
             FILTER_COMPLEX="$FILTER_COMPLEX;"
@@ -361,7 +368,7 @@ concatenate_videos() {
         FILTER_COMPLEX="$FILTER_COMPLEX$video_filter"
     done
     
-    # Add overlay operations for grid layout
+    # Add overlay operations for grid layout - simplified approach
     if [ "$NUM_VIDEOS" -gt 1 ]; then
         FILTER_COMPLEX="$FILTER_COMPLEX;color=black:size=${RESOLUTION}:duration=${MEAN_DURATION}:rate=60[bg]"
         
@@ -369,8 +376,8 @@ concatenate_videos() {
         for i in $(seq 0 $((NUM_VIDEOS - 1))); do
             local row=$((i / GRID_COLS))
             local col=$((i % GRID_COLS))
-            local x_pos=$(((col + 1) * PADDING + col * CELL_WIDTH))
-            local y_pos=$(((row + 1) * PADDING + row * CELL_HEIGHT))
+            local x_pos=$((PADDING + col * (CELL_WIDTH + PADDING)))
+            local y_pos=$((PADDING + row * (CELL_HEIGHT + PADDING)))
             
             if [ $i -eq $((NUM_VIDEOS - 1)) ]; then
                 FILTER_COMPLEX="$FILTER_COMPLEX;${overlay_chain}[v${i}]overlay=${x_pos}:${y_pos}[grid]"
@@ -383,9 +390,45 @@ concatenate_videos() {
         FILTER_COMPLEX="$FILTER_COMPLEX[grid]"
     fi
     
-    # Create grid video
+    # Create grid video - avoid eval by constructing command properly
     print_status "Generating grid view..."
-    eval "ffmpeg $ffmpeg_output $INPUTS -filter_complex \"$FILTER_COMPLEX\" -map \"[grid]\" -t $MEAN_DURATION -an -c:v libx264 -preset medium -crf 28 -movflags +faststart \"$TMP_DIR/grid_view.mp4\""
+    
+    # Write the filter complex to a file to avoid shell escaping issues
+    local FILTER_FILE="$TMP_DIR/filter_complex.txt"
+    echo "$FILTER_COMPLEX" > "$FILTER_FILE"
+    
+    # Build input arguments array
+    local FFMPEG_INPUTS=()
+    for video_file in "${VIDEO_FILES[@]}"; do
+        FFMPEG_INPUTS+=("-i")
+        FFMPEG_INPUTS+=("$video_file")
+    done
+    
+    # Run ffmpeg with proper argument handling
+    if [[ "$VERBOSE" == "true" ]]; then
+        ffmpeg "${FFMPEG_INPUTS[@]}" \
+            -filter_complex_script "$FILTER_FILE" \
+            -map "[grid]" \
+            -t "$MEAN_DURATION" \
+            -an \
+            -c:v libx264 \
+            -preset medium \
+            -crf 28 \
+            -movflags +faststart \
+            "$TMP_DIR/grid_view.mp4"
+    else
+        ffmpeg "${FFMPEG_INPUTS[@]}" \
+            -filter_complex_script "$FILTER_FILE" \
+            -map "[grid]" \
+            -t "$MEAN_DURATION" \
+            -an \
+            -c:v libx264 \
+            -preset medium \
+            -crf 28 \
+            -movflags +faststart \
+            "$TMP_DIR/grid_view.mp4" \
+            -v quiet
+    fi
     
     print_success "Grid view created successfully"
     
