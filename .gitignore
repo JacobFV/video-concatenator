@@ -44,4 +44,4 @@ test-output.*
 
 # Temporary directories
 tmp/
-temp/ 
+temp/ test-output.*
